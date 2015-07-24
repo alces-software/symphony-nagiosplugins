@@ -1,0 +1,84 @@
+#!/bin/bash
+################################################################################
+# (c) Copyright 2007-2011 Alces Software Ltd                                   #
+#                                                                              #
+# HPC Cluster Toolkit                                                          #
+#                                                                              #
+# This file/package is part of the HPC Cluster Toolkit                         #
+#                                                                              #
+# This is free software: you can redistribute it and/or modify it under        #
+# the terms of the GNU Affero General Public License as published by the Free  #
+# Software Foundation, either version 3 of the License, or (at your option)    #
+# any later version.                                                           #
+#                                                                              #
+# This file is distributed in the hope that it will be useful, but WITHOUT     #
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or        #
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License #
+# for more details.                                                            #
+#                                                                              #
+# You should have received a copy of the GNU Affero General Public License     #
+# along with this product.  If not, see <http://www.gnu.org/licenses/>.        #
+#                                                                              #
+# For more information on Alces Software, please visit:                        #
+# http://www.alces-software.org/                                               #
+#                                                                              #
+################################################################################
+
+# Script to check average cluster inlet temperature reported by ganglia
+
+# Inlet temperature thresholds
+lowalert=30
+highalert=35
+
+#We'll figure outwhat the cluster is called according to Ganglia - then it doesn't have to be hard coded.
+gangliacluster=`gstat | grep Name | awk '{print $2}'`
+#We'll pull the values from SummaryInfo - this holds nice cluster averages.
+RRDfile=/var/lib/ganglia/rrds/$gangliacluster/__SummaryInfo__/InletTemp.rrd
+
+#If this doesn't exist, we need to know, that's a problem.
+if [ ! -f $RRDfile ] ; then
+   # We'll exit 3 here - if there's no temperature data, we need to know.
+   echo "No temperature data stored in ganglia for $gangliacluster"
+   exit 3
+   #exit 0
+fi
+
+# We want the average for the last hour, we'll grab this now.
+# The output has two columns so you can calculate a mean average.
+# The last value read is the average for the last hour - we'll grab the most recent value.
+# first being sum of values, second being the amount of entires
+first=`rrdtool fetch $RRDfile AVERAGE -s e-1h | grep -v nan | tail -1 | awk '{print $2}'`
+second=`rrdtool fetch $RRDfile AVERAGE -s e-1h | grep -v nan | tail -1 | awk '{print $3}'`
+
+if [ "$first" == "" ] ; then
+   echo "No temperature data stored in ganglia for $gangliacluster"
+   exit 3
+fi
+
+# converts result to a decimal number
+decvalfirst=`python -c "print float ('$first')" | cut -d. -f1`
+decvalsecond=`python -c "print float ('$second')" | cut -d. -f1`
+
+# divide amount of entries by the sum of the totals
+clusteraverage=`expr $decvalfirst / $decvalsecond`
+
+# check if we have a value
+if [ "$clusteraverage" == "" ] ; then
+   echo "Could not retrieve temperature for $gangliacluster"
+   exit 3
+fi
+
+if [ $clusteraverage -ge $highalert ] ; then
+   echo "Critical inlet temperature ($decval degrees C)"
+   exit 2
+elif [ $clusteraverage -ge $lowalert ] ; then
+   echo "High inlet temperature ($clusteraverage degrees C)"
+   exit 1
+else
+   echo "Normal inlet temperature ($clusteraverage degrees C)"
+   exit 0
+fi
+
+# should not reach this point
+exit 3
+

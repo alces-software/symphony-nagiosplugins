@@ -24,34 +24,34 @@
 #                                                                              #
 ################################################################################
 
-# Script to check the status of the grid-engine master daemon via qping
+# Script to check the status of a HP hpacucli volume
+# Volume ID is passed as parameter 1
+# Adapter card is passed as parameter 2
+# N.B. This script needs to be run with SUDO by the nagios user
 
-# Set site variables (edit as necessary)
-# /opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/qping
-geloc=/opt/service/gridscheduler/2011.11p1_155/
-qping=$geloc/bin/linux-x64/qping
+binary=/usr/sbin/hpssacli
+# Check monitor is present and executable
+if [ ! -x $binary ] ; then
+   echo "Cannot execute HP disk monitor - is it installed?"
+   exit 3
+fi
 
-# Check monitor application is present and executable
-[[ -x $qping ]] || exit 3
+vol=$1
+card=$2
 
-qmaster=`cat $geloc/etc/conf/act_qmaster`
-qmasterport=6444
+# Check that sg kernel module is loaded
+if [ `lsmod | egrep "^sg " | wc -l` -lt 1 ] ; then
+   modprobe sg > /etc/null 2>&1
+fi
 
-# Source grid engine settings
-#. /etc/profile.d/ge.sh
-. /etc/profile > /dev/null 2>&1
-module load services/gridscheduler
+# the command to run to check the service
+checkcommand=`$binary controller slot=$card logicaldrive $vol show | grep Status | head -1`
 
-# Run the monitor command grab the output and the exit status
-$qping -info $qmaster $qmasterport qmaster 1 > /var/tmp/qping.out 2> /dev/null
-exitcode=$?
-
-if [ $exitcode -eq 0 ] ; then
-   echo "Grid-engine status is okay - `grep clients /var/tmp/qping.out | awk '{print $5}'` connected clients"
-   rm -f /var/tmp/qping.out
-   exit 0
-else
-   echo "Detected grid-engine status warning - see /var/tmp/qping.out"
+if [ `echo $checkcommand | grep -c OK | awk '{print $1}'` -lt 1 ] ; then
+   echo "System disk RAID volume warning: `echo $checkcommand | sed 's?\t? ?g'`"
    exit 1
+else
+   echo "System disk RAID volume OK"
+   exit 0
 fi
 

@@ -28,10 +28,11 @@
 # Pass the server IPMI interface IP address or name as the first parameter
 # N.B. This plugin should be run via sudo
 
-# Check alces IPMI monitor application is present and executable
-[[ -x /opt/gridware/alces/sbin/alces-ipmi ]] || exit 3
+# set ecc-check spool directory
+checkdir=/var/spool/nagios/ecc-check
 
-pid=$$
+# Check that ECC output files are available
+[[ -d $checkdir ]] || exit 3
 
 # Check that we've been passed a parameter
 remote=$1
@@ -40,13 +41,32 @@ if [ ! $remote ] ; then
    exit 3
 fi
 
-# the command to run to check the service
-checkcommand=`/opt/gridware/alces/sbin/alces-ipmi $remote -c 'sel list' 2> /dev/null | grep -i ECC | wc -l`
+# check we have output for this node
+if [ ! -f $checkdir/$remote.ecc.out ] ; then
+   echo "No log information found for $remote"
+   exit 3
+fi
 
-if [ `echo $checkcommand | awk '{print $1}'` -gt 0 ] ; then
-   echo "System event log for $remote has logged $checkcommand ECC memory event(s)"
+# the command to run to check the service
+checkcommand=`egrep -ic "ecc|memory" $checkdir/$remote.ecc.out | awk '{print $1}'`
+
+if [ $checkcommand -gt 0 ] ; then
+   # detected a memory fault, so check what type
+   uecc=`grep -ic " uncorrect" $checkdir/$remote.ecc.out | awk '{print $1}'`
+   cecc=`grep -ic " correctable" $checkdir/$remote.ecc.out | awk '{print $1}'`
+   if [ $uecc -gt 0 ] ; then
+      echo "Detected $uecc uncorrectable ECC errors on $remote"
+      exit 2
+   elif [ $cecc -gt 0 ] ; then
+      echo "Detected $cecc correctable ECC errors on $remote"
+      exit 1
+   else
+      echo "Detected $checkcommand memory errors on $remote"
+   fi
    exit 1
 else
+   # No faults found
    echo "No ECC events logged for $remote"
    exit 0
 fi
+

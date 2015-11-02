@@ -39,29 +39,35 @@ if [ "$nodename" == "" ] ; then
 fi
 
 # Use host resolution to work out what ganglia will know the node as
-fullnodename=`gethostip $nodename 2> /dev/null | awk '{print $1}'`
-gangliacluster=`gstat | grep Name | awk '{print $2}'`
-RRDfile=/var/lib/ganglia/rrds/$gangliacluster/$fullnodename/InletTemp.rrd
+#fullnodename=`gethostip $nodename 2> /dev/null | awk '{print $1}'`
+#gangliacluster=`gstat | grep Name | awk '{print $2}'`
+#RRDfile=/var/lib/ganglia/rrds/$gangliacluster/$fullnodename/InletTemp.rrd
+#
+#if [ ! -f $RRDfile ] ; then
+#   RRDfile=/var/lib/ganglia/rrds/$gangliacluster/$fullnodename/AmbientTemp.rrd
+#fi
+#
+## check we have ganglia data for this node
+#if [ ! -f $RRDfile ] ; then
+#   # really we should exit 3 here, but choose to exit 0 instead to avoid false alerts
+#   echo "No temperature data stored in ganglia for $nodename"
+#   # exit 3
+#   exit 0
+#fi
+#
+## get the last update stored by ganglia in the last hour
+#scinot=`rrdtool fetch $RRDfile AVERAGE -s e-1h | grep -v nan | tail -1 | awk '{print $2}'`
+#
+#if [ "$scinot" == "" ] ; then
+#   echo "No temperature data stored in ganglia for $nodename"
+#   # exit 3
+#   exit 0
+#fi
+#
+## convert result to a decimal number
+#decval=`python -c "print float ('$scinot')" | cut -d. -f1`
 
-# check we have ganglia data for this node
-if [ ! -f $RRDfile ] ; then
-   # really we should exit 3 here, but choose to exit 0 instead to avoid false alerts
-   echo "No temperature data stored in ganglia for $nodename"
-   # exit 3
-   exit 0
-fi
-
-# get the last update stored by ganglia in the last hour
-scinot=`rrdtool fetch $RRDfile AVERAGE -s e-1h | grep -v nan | tail -1 | awk '{print $2}'`
-
-if [ "$scinot" == "" ] ; then
-   echo "No temperature data stored in ganglia for $nodename"
-   # exit 3
-   exit 0
-fi
-
-# convert result to a decimal number
-decval=`python -c "print float ('$scinot')" | cut -d. -f1`
+decval=`cat /var/spool/nagios/ipmi-check/$nodename.ipmi.out 2> /dev/null | grep -i inlet | head -1 | awk '{print $8}' | cut -d. -f1`
 
 # check if we have a value
 if [ "$decval" == "" ] ; then

@@ -39,4 +39,3 @@ else
    echo "Nagios has `echo $checkcommand | awk '{print $3}'` Services Healthy"
    exit 0
 fi
-

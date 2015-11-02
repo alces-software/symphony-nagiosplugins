@@ -1,6 +1,6 @@
 #!/bin/bash
 ################################################################################
-# (c) Copyright 2007-2011 Alces Software Ltd                                   #
+# (c) Copyright 2007-2015 Alces Software Ltd                                   #
 #                                                                              #
 # HPC Cluster Toolkit                                                          #
 #                                                                              #
@@ -24,34 +24,35 @@
 #                                                                              #
 ################################################################################
 
-# Script to check the status of the grid-engine master daemon via qping
+# Script to check the status of HP health flag on iLO via IPMI
 
-# Set site variables (edit as necessary)
-# /opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/qping
-geloc=/opt/service/gridscheduler/2011.11p1_155/
-qping=$geloc/bin/linux-x64/qping
+# set ecc-check spool directory
+checkdir=/var/spool/nagios/ipmi-check
 
-# Check monitor application is present and executable
-[[ -x $qping ]] || exit 3
+# Check that ECC output files are available
+[[ -d $checkdir ]] || exit 3
 
-qmaster=`cat $geloc/etc/conf/act_qmaster`
-qmasterport=6444
+# Check that we've been passed a parameter
+remote=$1
+if [ ! $remote ] ; then
+   echo "No node name passed to check"
+   exit 3
+fi
 
-# Source grid engine settings
-#. /etc/profile.d/ge.sh
-. /etc/profile > /dev/null 2>&1
-module load services/gridscheduler
+# check we have output for this node
+if [ ! -f $checkdir/$remote.ipmi.out ] ; then
+   echo "No log information found for $remote"
+   exit 3
+fi
 
-# Run the monitor command grab the output and the exit status
-$qping -info $qmaster $qmasterport qmaster 1 > /var/tmp/qping.out 2> /dev/null
-exitcode=$?
+# the command to run to check the service
+checkcommand=`egrep "Health LED" $checkdir/$remote.ipmi.out`
 
-if [ $exitcode -eq 0 ] ; then
-   echo "Grid-engine status is okay - `grep clients /var/tmp/qping.out | awk '{print $5}'` connected clients"
-   rm -f /var/tmp/qping.out
-   exit 0
-else
-   echo "Detected grid-engine status warning - see /var/tmp/qping.out"
+if [ `echo $checkcommand | egrep -c "OEM Event = 0001h" | awk '{print $1}'` -lt 1 ] ; then
+   echo "HP iLO reporting health problem"
    exit 1
+else
+   echo "HP iLO health ok"
+   exit 0
 fi
 

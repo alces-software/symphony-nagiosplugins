@@ -53,7 +53,7 @@ if [ "$1" == "service" ] ; then
    fi
 
 elif [ "$1" == "member" ] ; then
-   
+
    # Perform a member check
    member=$2
 
@@ -82,3 +82,4 @@ fi
 
 echo "Monitoring fault - check plugin"
 exit 3
+

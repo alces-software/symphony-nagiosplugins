@@ -24,34 +24,40 @@
 #                                                                              #
 ################################################################################
 
-# Script to check the status of the grid-engine master daemon via qping
+# Script to check the status of Ceph OSD daemons
+# Expected number of Ceph OSDs passed as first parameter
+# N.B. This script needs to be run with SUDO by the nagios user
 
-# Set site variables (edit as necessary)
-# /opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/qping
-geloc=/opt/service/gridscheduler/2011.11p1_155/
-qping=$geloc/bin/linux-x64/qping
+# Check monitor is present and executable
+if [ ! -x /usr/bin/ceph ] ; then
+   echo "Cannot execute Ceph monitor - is it installed?"
+   exit 3
+fi
 
-# Check monitor application is present and executable
-[[ -x $qping ]] || exit 3
-
-qmaster=`cat $geloc/etc/conf/act_qmaster`
-qmasterport=6444
-
-# Source grid engine settings
-#. /etc/profile.d/ge.sh
-. /etc/profile > /dev/null 2>&1
-module load services/gridscheduler
-
-# Run the monitor command grab the output and the exit status
-$qping -info $qmaster $qmasterport qmaster 1 > /var/tmp/qping.out 2> /dev/null
-exitcode=$?
-
-if [ $exitcode -eq 0 ] ; then
-   echo "Grid-engine status is okay - `grep clients /var/tmp/qping.out | awk '{print $5}'` connected clients"
-   rm -f /var/tmp/qping.out
-   exit 0
-else
-   echo "Detected grid-engine status warning - see /var/tmp/qping.out"
+osds=$1
+if [ "$osds" == "" ] ; then
+   echo "Pass number of expected OSDs as first parameter"
    exit 1
+fi
+
+tmpfile=/var/tmp/cephcheck.$$
+
+# the command to run to check the service
+/usr/bin/ceph osd tree > $tmpfile
+
+foundosds=`grep osd $tmpfile | wc -l`
+uposds=`grep osd $tmpfile | grep -c up`
+rm -f $tmpfile
+
+if [ $foundosds -ne $osds ] ; then
+   echo "Found $foundosds OSD(s) active - expected $osds"
+   exit 1
+elif [ $uposds -ne $osds ] ; then
+   downosds=`expr $osds - $uposds`
+   echo "$downosds of $osds OSD(s) currently down"
+   exit 1
+else
+   echo "Found $uposds OSD(s) running"
+   exit 0
 fi
 

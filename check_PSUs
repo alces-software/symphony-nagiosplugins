@@ -25,18 +25,31 @@
 ################################################################################
 
 # Script to check the status of redundant PSUs using the ipmi-sensors command
-# N.B. This script needs to be run with SUDO by the nagios user
 
-# the command to run to check the service
-checkcommand=`/usr/sbin/ipmi-sensors 2> /dev/null | grep "PS Redundancy" | head -1`
+# set ecc-check spool directory
+checkdir=/var/spool/nagios/ipmi-check
 
-if [ ! -x /usr/sbin/ipmi-sensors ] || [ `ls -1 /dev/ipmi* 2> /dev/null | wc -l | awk '{print $1}'` -lt 1 ] ; then
-   echo "IPMI monitoring not available"
+# Check that ECC output files are available
+[[ -d $checkdir ]] || exit 3
+
+# Check that we've been passed a parameter
+remote=$1
+if [ ! $remote ] ; then
+   echo "No node name passed to check"
    exit 3
 fi
 
+# check we have output for this node
+if [ ! -f $checkdir/$remote.ipmi.out ] ; then
+   echo "No log information found for $remote"
+   exit 3
+fi
+
+# the command to run to check the service
+checkcommand=`egrep "Power Supplies|PS Redundancy" $checkdir/$remote.ipmi.out | head -1`
+
 if [ `echo $checkcommand | egrep -c "Fully Redundant|OK|Ok" | awk '{print $1}'` -lt 1 ] ; then
-   echo "PSU redundancy problem: `echo $checkcommand | cut -d: -f2,3`"
+   echo "PSU redundancy problem: `echo $checkcommand | cut -d\| -f4 | awk '{print $1}'`"
    exit 1
 else
    echo "PSU redundancy ok"

@@ -27,8 +27,31 @@
 # Script to check the status of round-robin multipath storage connections
 # N.B. This script needs to be run with SUDO by the nagios user
 
+vendor=$1
+
+if [ "$vendor" == "" ] ; then
+   vendor=generic
+fi
+
 # the command to run to check the service
 checkcommand="/sbin/multipath -ll"
+
+if [ "$vendor" == "HP" ] ; then
+   # HP arrays do not show missing paths as failed - they just get missing from the multipath output
+   # In this case, we need to compare the number of primary and backup paths
+   # Server internal SAS RAID cards do not show up in mutlipath for HP servers
+   primary=`multipath -ll 2> /dev/null | egrep -c "status=active" | awk '{print $1}'`
+   backup=`multipath -ll 2> /dev/null | egrep -c "status=enabled" | awk '{print $1}'`
+ 
+   # The number of backup paths must be greater than or equal to the number of primary paths
+   if [ $backup -lt $primary ] ; then
+      echo "SAS multipath warning: $primary primary paths and $backup backup paths"
+      exit 1
+   else
+      echo "SAS multipath OK: $primary primary and $backup backup paths"
+      exit 0
+   fi
+fi
 
 if [ `$checkcommand | fgrep \_ | egrep -v "prio|active|features"  | wc -l | awk '{print $1}'` -gt 0 ] ; then
    echo "SAS multipath warning: `$checkcommand | fgrep \_ | egrep -v "prio|active|features" | awk '{print $3,$5}'`"

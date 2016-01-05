@@ -49,6 +49,19 @@ fi
 checkcommand=`egrep "Power Supplies|PS Redundancy" $checkdir/$remote.ipmi.out | head -1`
 
 if [ `echo $checkcommand | egrep -c "Fully Redundant|OK|Ok" | awk '{print $1}'` -lt 1 ] ; then
+   # Cant find a redundancy flag for this server
+   # Some chassis based servers only list the number of PSUs and a status for each, so check that too
+   totalpsus=`grep PS $checkdir/$remote.ipmi.out | grep -c Output | awk '{print $1}'`
+   okpsus=`grep PS $checkdir/$remote.ipmi.out | grep Output | grep -c OK | awk '{print $1}'`
+   if [ $totalpsus -gt 0 ] ; then
+     if [ $okpsus -lt $totalpsus ] ; then
+        echo "PSU redundancy problem: $okpsus working PSU(s) of $totalpsus"
+        exit 1
+     else
+        echo "PSU redundancy okay ($okpsus PSU(s) report OK)"
+        exit 0
+     fi
+   fi
    echo "PSU redundancy problem: `echo $checkcommand | cut -d\| -f4 | awk '{print $1}'`"
    exit 1
 else

@@ -29,6 +29,13 @@
 # Set site variables (edit as necessary)
 dirvishmaster=/etc/dirvish/master.conf
 
+if [ "$1" == "-v" ] ; then
+  echo "Setting verbose mode..."
+  VERBOSE=1
+else
+  VERBOSE=0
+fi
+
 # Check dirvish master config file is present
 [[ -f $dirvishmaster ]] || exit 3
 
@@ -44,6 +51,9 @@ warning=0
 error=0
 failure=0
 
+# Look for a running backup
+running=`ps -ef | grep dirvish | grep -v grep | grep "/usr/bin/perl" | wc -l`
+
 for backup in `find $bank -maxdepth 3 -name summary`
 do
    case `tail -1 $backup | cut -d: -f 2 | awk '{print $1}'` in
@@ -51,16 +61,34 @@ do
           success=`expr $success + 1`
           ;;
       "warning")
+          if [ $VERBOSE -eq 1 ] ; then
+             echo "warning - $backup"
+          fi
           warning=`expr $warning + 1`
           ;;
       "error")
+          if [ $VERBOSE  -eq 1 ] ; then
+	     echo "error - $backup"
+	  fi
           error=`expr $error + 1`
           ;;
       *) 
+          if [ $VERBOSE -eq 1 ] ; then
+             echo "failure - $backup"
+          fi
           failure=`expr $failure + 1`
           ;;
    esac
 done
+
+# If dirvish was running when we performed our check, one backup directory will be incorrected detected as failed
+if [ $failure -gt 0 ] && [ $running -gt 0 ] ; then
+   failure=`expr $failure - 1`
+   if [ $VERBOSE -eq 1 ] ; then
+      echo "Detected running backup - skipping one failure report"
+   fi
+fi
+
 
 if [ $failure -gt 0 ] ; then
    echo "Detected $failure failed dirvish backups ($error/$warning/$success backups with errors/warnings/successful)"

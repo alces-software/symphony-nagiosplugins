@@ -28,20 +28,20 @@
 . /etc/profile.d/alces-profiles.sh > /dev/null 2>&1
 
 # Set site variables (edit as necessary)
-module -s load services/gridscheduler > /dev/null 2>&1 
+module -s load services/gridscheduler > /dev/null 2>&1
 export SGE_CELL="etc"
 export SGE_CLUSTER_NAME="cluster"
 export SGE_EXECD_PORT="6445"
 export SGE_QMASTER_PORT="6444"
-export SGE_ROOT="/opt/alces/pkg/services/gridscheduler/2011.11p1_155"
-PATH=$PATH:/opt/alces/pkg/services/gridscheduler/2011.11p1_155/bin/linux-x64/
-qping=/opt/alces/pkg/services/gridscheduler/2011.11p1_155/bin/linux-x64/qping
+export SGE_ROOT="/opt/service/gridscheduler/2011.11p1_155"
+PATH=$PATH:/opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/
+qping=/opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/qping
 qstat=qstat
 
 # Check monitor application is present and executable
 [[ -x `which $qstat` ]] || exit 3
 
-numerrors=`$qstat -f -u \* | grep E | grep -v PENDING | wc -l | awk '{print $1}'`
+numerrors=`$qstat -f -u \* | grep E | grep -v PENDING | awk '{$1=$2=$3=$4=""; sub(/^  */,"", $0); print }' | grep E | wc -l | awk '{print $1}'`
 
 if [ $numerrors -gt 0 ] ; then
    echo "Detected $numerrors grid-engine error(s)"
@@ -53,5 +53,3 @@ fi
 
 # should never reach this point - exit with alert
 exit 3
-
-

@@ -27,13 +27,16 @@
 # Script to check for grid-engine jobs or queues in error state
 . /etc/profile.d/alces-profiles.sh > /dev/null 2>&1
 
+# Set the minimum number of job errors to warn us about
+joberrorthreshold=10
+
 # Set site variables (edit as necessary)
-module -s load services/gridscheduler > /dev/null 2>&1
+module -s load services/gridscheduler > /dev/null 2>&1 
 export SGE_CELL="etc"
 export SGE_CLUSTER_NAME="cluster"
 export SGE_EXECD_PORT="6445"
 export SGE_QMASTER_PORT="6444"
-export SGE_ROOT="/opt/service/gridscheduler/2011.11p1_155"
+export SGE_ROOT="/opt/service/gridscheduler/2011.11p1_155/"
 PATH=$PATH:/opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/
 qping=/opt/service/gridscheduler/2011.11p1_155/bin/linux-x64/qping
 qstat=qstat
@@ -41,11 +44,18 @@ qstat=qstat
 # Check monitor application is present and executable
 [[ -x `which $qstat` ]] || exit 3
 
-numerrors=`$qstat -f -u \* | grep E | grep -v PENDING | awk '{$1=$2=$3=$4=""; sub(/^  */,"", $0); print }' | grep E | wc -l | awk '{print $1}'`
+qerrors=`$qstat -f | grep E | grep -- "linux-" | wc -l | awk '{print $1}'`
+jerrors=`$qstat -u \* | grep E | grep -v PENDING | wc -l | awk '{print $1}'`
 
-if [ $numerrors -gt 0 ] ; then
-   echo "Detected $numerrors grid-engine error(s)"
+if [ $qerrors -gt 0 ] ; then
+   echo "Detected $qerrors grid-engine queue error(s)"
    exit 1
+elif [ $jerrors -gt $joberrorthreshold ] ; then
+   echo "Number of grid-engine job errors ($jerrors) above warning threshold ($joberrorthreshold)"
+   exit 1
+elif [ $jerrors -gt 0 ] ; then
+   echo "$jerrors grid-engine job error(s) detected - below alert threshold of $joberrorthreshold"
+   exit 0
 else
    echo "No grid-engine errors reported"
    exit 0
@@ -53,3 +63,5 @@ fi
 
 # should never reach this point - exit with alert
 exit 3
+
+

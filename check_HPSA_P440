@@ -46,12 +46,23 @@ fi
 
 # the command to run to check the service
 checkcommand=`$binary controller slot=$card logicaldrive $vol show | grep Status | head -1`
+PFcommand=`$binary controller slot=$card physicaldrive all show | grep "Predictive Failure" | wc -l | awk '{print $1}'`
 
 if [ `echo $checkcommand | grep -c OK | awk '{print $1}'` -lt 1 ] ; then
-   echo "System disk RAID volume warning: `echo $checkcommand | sed 's?\t? ?g'`"
-   exit 1
+   if [ $PFcommand -eq 0 ] ; then
+      echo "RAID card $card volume $vol warning: `echo $checkcommand | sed 's?\t? ?g'`"
+      exit 1
+   else
+      echo "RAID card $card volume $vol warning: `echo $checkcommand | sed 's?\t? ?g'` and $PFcommand disk(s) with PF"
+      exit 1 
+   fi
 else
-   echo "System disk RAID volume OK"
-   exit 0
+   if [ $PFcommand -eq 0 ] ; then
+      echo "RAID card $card volume $vol OK"
+      exit 0
+   else
+      echo "RAID card $card predicting failure of $PFcommand disk(s)"
+      exit 1
+   fi
 fi
 

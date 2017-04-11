@@ -1,0 +1,72 @@
+#!/bin/bash
+################################################################################
+# (c) Copyright 2007-2017 Alces Software Ltd                                   #
+#                                                                              #
+# HPC Cluster Toolkit                                                          #
+#                                                                              #
+# This file/package is part of the HPC Cluster Toolkit                         #
+#                                                                              #
+# This is free software: you can redistribute it and/or modify it under        #
+# the terms of the GNU Affero General Public License as published by the Free  #
+# Software Foundation, either version 3 of the License, or (at your option)    #
+# any later version.                                                           #
+#                                                                              #
+# This file is distributed in the hope that it will be useful, but WITHOUT     #
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or        #
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License #
+# for more details.                                                            #
+#                                                                              #
+# You should have received a copy of the GNU Affero General Public License     #
+# along with this product.  If not, see <http://www.gnu.org/licenses/>.        #
+#                                                                              #
+# For more information on Alces Software, please visit:                        #
+# http://www.alces-software.org/                                               #
+#                                                                              #
+################################################################################
+
+# Very basic plugin to check Dell Compellent array status via SNMP
+
+array=$1
+
+if [ "$array" == "" ] || [ `ping -c 1 $array | grep -c "1 received"` -ne 1 ] ; then
+   echo "Cannot connect to array $1 - is it online?"
+   exit 1
+fi
+
+arraystatus=`snmpwalk -v 1 -c public -On $array 1.3.6.1.4.1.674.11000.2000.500.1.2.6 | cut -d: -f2 | awk '{print $1}'`
+c1status=`snmpwalk -v 1 -c public -On $array 1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.3.1 | cut -d: -f2 | awk '{print $1}'`
+c2status=`snmpwalk -v 1 -c public -On $array 1.3.6.1.4.1.674.11000.2000.500.1.2.13.1.3.2 | cut -d: -f2 | awk '{print $1}'`
+diskok=0
+diskfail=0
+for i in `snmpwalk -v 1 -c public -On 10.11.0.77 1.3.6.1.4.1.674.11000.2000.500.1.2.14.1.3 | cut -d: -f2 | awk '{print $1}'`
+do
+   if [ $i -eq 1 ] ; then
+      diskok=`expr $diskok + 1`
+   else
+      diskfail=`expr $diskfail + 1`
+   fi
+done
+
+#echo "Detected status $arraystatus, controller status $c1status and $c2status, $diskok good and $diskfail bad disks"
+
+if [ $arraystatus -ne 3 ] ; then
+   echo "Array $array warning - status $arraystatus (controller status $c1status/$c2status), $diskok good/$diskfail bad disks"
+   exit 1
+elif [ $c1status -ne 1 ] ; then
+   echo "Controller 1 warning - status $c1status (controller 2 status $c2status)"
+   exit 1
+elif [ $c2status -ne 1 ] ; then
+   echo "Controller 2 warning - status $c2status (controller 1 status $c1status)"
+   exit 1
+elif [ $diskfail -gt 0 ] ; then
+   echo "Array reports $diskfail disks with errors ($diskok disks okay)"
+   exit 1
+else
+   echo "Array ok - status $arraystatus, controller status $c1status/$c2status, $diskok good and $diskfail bad disks"
+   exit 0
+fi
+
+exit 3
+
+
+

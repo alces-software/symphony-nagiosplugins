@@ -53,6 +53,11 @@ if [ "$vendor" == "HP" ] ; then
    fi
 fi
 
+if [ `$checkcommand | grep -c faulty` -gt 0 ] ; then
+   echo "SAS multipath warning"
+   exit 1
+fi
+
 if [ `$checkcommand | fgrep \_ | egrep -v "prio|active|features"  | wc -l | awk '{print $1}'` -gt 0 ] ; then
    echo "SAS multipath warning: `$checkcommand | fgrep \_ | egrep -v "prio|active|features" | awk '{print $3,$5}'`"
    exit 1
